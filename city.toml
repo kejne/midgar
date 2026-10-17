@@ -2,9 +2,6 @@
 provider = "pi"
 
 [providers]
-[providers.codex]
-base = "builtin:codex"
-ready_delay_ms = 0
 [providers.pi]
 base = "builtin:pi"
 ready_delay_ms = 0
