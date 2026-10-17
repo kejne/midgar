@@ -1,0 +1,2 @@
+description = "Worker for formula-routed work in a rig"
+scope = "rig"

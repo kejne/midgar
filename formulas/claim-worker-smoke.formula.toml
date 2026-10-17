@@ -1,0 +1,11 @@
+description = "Single-step graph-v2 work routed through Midgar's formula worker."
+formula = "claim-worker-smoke"
+version = 1
+contract = "graph.v2"
+target_required = false
+
+[[steps]]
+id = "claim-work"
+title = "Claim and complete routed work"
+metadata = { "gc.run_target" = "midgar.formula-worker" }
+description = "Use `gc gc claim` as the first work-discovery action, act only on the returned bead, and close the claimed work when complete."
