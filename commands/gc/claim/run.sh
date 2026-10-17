@@ -228,7 +228,7 @@ while [ "$verify_try" -lt "$max_attempts" ]; do
         elif ! claim_assignee_is_ours "$claim_assignee"; then
             printf 'CLAIM_REJECTED assignee mismatch for %s\n' "$work_id" >&2
             break
-        elif [ -n "$EXPECTED_ROUTE" ] && [ -n "$claim_route" ] && [ "$claim_route" != "$EXPECTED_ROUTE" ]; then
+        elif [ -n "$EXPECTED_ROUTE" ] && [ "$claim_route" != "$EXPECTED_ROUTE" ]; then
             printf 'CLAIM_REJECTED route mismatch for %s\n' "$work_id" >&2
             break
         else
