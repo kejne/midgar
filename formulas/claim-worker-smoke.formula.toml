@@ -1,11 +1,18 @@
-description = "Single-step graph-v2 work routed through Midgar's formula worker."
+description = "Two-step graph-v2 work routed through Midgar's formula worker to prove dependency ordering."
 formula = "claim-worker-smoke"
 version = 1
 contract = "graph.v2"
 target_required = false
 
 [[steps]]
-id = "claim-work"
-title = "Claim and complete routed work"
+id = "write-artifact"
+title = "Write the dependency smoke artifact"
 metadata = { "gc.run_target" = "midgar.formula-worker" }
-description = "Use `gc gc claim` as the first work-discovery action, act only on the returned bead, and close the claimed work when complete."
+description = "In the gascity-irc-pack rig, write the known text `midgar graph-v2 dependency smoke` to `.midgar-graph-v2-smoke.txt` using `printf '%s\\n' 'midgar graph-v2 dependency smoke' > .midgar-graph-v2-smoke.txt`. Complete this step only after the file has been written."
+
+[[steps]]
+id = "verify-artifact"
+title = "Verify and clean up the dependency smoke artifact"
+depends_on = ["write-artifact"]
+metadata = { "gc.run_target" = "midgar.formula-worker" }
+description = "In the gascity-irc-pack rig, verify `.midgar-graph-v2-smoke.txt` contains exactly `midgar graph-v2 dependency smoke`, then remove it whether verification succeeds or fails. Run `artifact=.midgar-graph-v2-smoke.txt; if test -f \"$artifact\" && test \"$(cat \"$artifact\")\" = 'midgar graph-v2 dependency smoke'; then rm -f \"$artifact\"; else rm -f \"$artifact\"; exit 1; fi`. Do not complete this step unless verification succeeds."
