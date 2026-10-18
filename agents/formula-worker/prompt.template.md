@@ -1,3 +1,1 @@
-# Formula-routed rig worker
-
-{{ template "midgar-formula-worker-protocol" . }}
+{{ template "gc-role-worker" . }}

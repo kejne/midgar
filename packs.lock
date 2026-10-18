@@ -14,3 +14,8 @@ fetched = "2026-10-17T19:02:39Z"
 version = "sha:520e95cb22992a8a1017f7a60da267f203497c7e"
 commit = "520e95cb22992a8a1017f7a60da267f203497c7e"
 fetched = "2026-10-17T19:02:39Z"
+
+[packs."https://github.com/gastownhall/gascity-packs/tree/main/gascity/roles"]
+version = "sha:520e95cb22992a8a1017f7a60da267f203497c7e"
+commit = "520e95cb22992a8a1017f7a60da267f203497c7e"
+fetched = "2026-10-17T19:02:39Z"
