@@ -9,8 +9,6 @@ version = "sha:fec82025d24392176eef9153ebf7af8759c6ef0c"
 [imports.core]
 source = "https://github.com/gastownhall/gascity/tree/main/internal/bootstrap/packs/core"
 version = "sha:fec82025d24392176eef9153ebf7af8759c6ef0c"
-[imports."gc-roles"]
-source = "./vendor/gc-roles"
 
 [[named_session]]
 template = "mayor"

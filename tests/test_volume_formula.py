@@ -38,9 +38,20 @@ class VolumeFormulaTest(unittest.TestCase):
             self.assertGreater(len(rendered), 3000)
             self.assertIn("# GC Role Worker", rendered)
             self.assertIn("This is your only work-discovery command", rendered)
-        self.assertIn('source = "./vendor/gc-roles"', PACK)
-        self.assertNotIn("gascity-packs/tree/main/gascity/roles", PACK)
-        self.assertNotIn('[imports.gc]', PACK)
+        import tomllib
+
+        self.assertNotIn("gc-roles", tomllib.loads(PACK).get("imports", {}))
+        city = tomllib.loads((ROOT / "city.toml").read_text())
+        self.assertEqual(
+            city["defaults"]["rig"]["imports"]["gc-roles"]["source"],
+            "./vendor/gc-roles",
+        )
+        self.assertEqual(
+            {rig["name"] for rig in city["rigs"]},
+            {"gremlins", "gascity-irc-pack", "helm-values-docs"},
+        )
+        for rig in city["rigs"]:
+            self.assertEqual(rig["imports"]["gc-roles"]["source"], "./vendor/gc-roles")
         self.assertIn("520e95cb22992a8a1017f7a60da267f203497c7e", (VENDOR / "README.md").read_text())
 
     def test_steps_route_to_distinct_workers(self):
