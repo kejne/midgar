@@ -1,6 +1,9 @@
 [workspace]
 provider = "pi"
 
+[session]
+provider = "herdr"
+
 [providers]
 [providers.pi]
 base = "builtin:pi"
