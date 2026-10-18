@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Explicit real-city smoke test. This mutates the selected rig's bead store and
 # leaves both output files in the rig for inspection; invoke only in an active city.
+# This does not establish claim identity, duplicate-claim behavior, or drain
+# acknowledgement: the completed-workflow CLI view does not expose those
+# lifecycle events. Those acceptance checks remain blocked pending an active-city run.
 set -euo pipefail
 
 if [[ $# -ne 2 ]]; then
@@ -15,23 +18,23 @@ run_id="volume-smoke-$(date +%s)"
 # Keep the source description numeric-only: it is the payload under test.
 task_id=$(gc --city "$city_dir" --rig "$rig_name" bd create \
   --title "Volume formula smoke input $run_id" --description "1000" --silent)
-convoy_json=$(gc --city "$city_dir" --rig "$rig_name" convoy create "$run_id" "$task_id" --json)
-convoy_id=$(printf '%s\n' "$convoy_json" | python3 -c 'import json,sys; lines=[line for line in sys.stdin if line.strip()]; print(json.loads(lines[-1])["id"])')
 
-gc --city "$city_dir" --rig "$rig_name" formula cook claim-worker-smoke \
-  --attach "$task_id" --var "convoy_id=$convoy_id"
+# --on routes the formula root with this source bead as its invocation convoy.
+sling_json=$(gc --city "$city_dir" --rig "$rig_name" sling \
+  gascity-irc-pack/volume-converter "$task_id" --on claim-worker-smoke --nudge --json)
+root_id=$(printf '%s\n' "$sling_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["workflow_id"])')
 
-# Wait for the attached source task to close, which requires the formula DAG to finish.
+# Wait for the formula root itself, not merely the source task, to close.
 deadline=$((SECONDS + ${SMOKE_TIMEOUT_SECONDS:-1800}))
 while (( SECONDS < deadline )); do
-  task_json=$(gc --city "$city_dir" --rig "$rig_name" bd show "$task_id" --json)
-  if printf '%s' "$task_json" | python3 -c 'import json,sys; raise SystemExit(0 if json.load(sys.stdin).get("status") == "closed" else 1)'; then
+  root_json=$(gc --city "$city_dir" --rig "$rig_name" bd show "$root_id" --json)
+  if printf '%s' "$root_json" | python3 -c 'import json,sys; raise SystemExit(0 if json.load(sys.stdin).get("status") == "closed" else 1)'; then
     break
   fi
   sleep 5
 done
 if (( SECONDS >= deadline )); then
-  echo "timed out waiting for formula completion: task=$task_id convoy=$convoy_id" >&2
+  echo "timed out waiting for formula root: root=$root_id source=$task_id" >&2
   exit 1
 fi
 
@@ -40,4 +43,4 @@ for file in volume-converter.txt volume-doubler.txt; do
 done
 [[ $(<"$rig_dir/volume-converter.txt") == "1 m^3" ]]
 [[ $(<"$rig_dir/volume-doubler.txt") == "2 m^3" ]]
-printf 'PASS task=%s convoy=%s\noutputs retained in %s\n' "$task_id" "$convoy_id" "$rig_dir"
+printf 'PASS task=%s root=%s\noutputs retained in %s\n' "$task_id" "$root_id" "$rig_dir"

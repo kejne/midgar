@@ -55,8 +55,13 @@ class VolumeFormulaTest(unittest.TestCase):
         self.assertIn("volume-doubler.txt", smoke)
         self.assertIn('1 m^3', smoke)
         self.assertIn('2 m^3', smoke)
-        self.assertIn('formula cook claim-worker-smoke', smoke)
-        self.assertIn('--attach "$task_id"', smoke)
+        self.assertIn('sling \\\n  gascity-irc-pack/volume-converter "$task_id" --on claim-worker-smoke --nudge --json', smoke)
+        self.assertIn('d["workflow_id"]', smoke)
+        self.assertIn('bd show "$root_id"', smoke)
+        self.assertNotIn('formula cook', smoke)
+        self.assertNotIn('--var convoy_id', smoke)
+        self.assertNotIn('convoy create', smoke)
+        self.assertIn('claim identity, duplicate-claim behavior, or drain', smoke)
 
 
 if __name__ == "__main__":
