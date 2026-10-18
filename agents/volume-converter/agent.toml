@@ -1,3 +1,0 @@
-description = "Formula worker that converts source volume to cubic metres"
-scope = "rig"
-dir = "gascity-irc-pack"
