@@ -28,7 +28,7 @@ root_id=$(printf '%s\n' "$sling_json" | python3 -c 'import json,sys; d=json.load
 deadline=$((SECONDS + ${SMOKE_TIMEOUT_SECONDS:-1800}))
 while (( SECONDS < deadline )); do
   root_json=$(gc --city "$city_dir" --rig "$rig_name" bd show "$root_id" --json)
-  if printf '%s' "$root_json" | python3 -c 'import json,sys; raise SystemExit(0 if json.load(sys.stdin).get("status") == "closed" else 1)'; then
+  if printf '%s' "$root_json" | python3 -c 'import json,sys; data=json.load(sys.stdin); data=data[0] if isinstance(data,list) else data; raise SystemExit(0 if data.get("status") == "closed" else 1)'; then
     break
   fi
   sleep 5
