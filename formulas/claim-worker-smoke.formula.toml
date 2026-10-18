@@ -2,7 +2,7 @@ description = "Two-step graph-v2 volume conversion routed through Midgar's formu
 formula = "claim-worker-smoke"
 version = 1
 contract = "graph.v2"
-target_required = false
+target_required = true
 
 [requires]
 formula_compiler = ">=2.0.0"
@@ -10,12 +10,12 @@ formula_compiler = ">=2.0.0"
 [[steps]]
 id = "volume-converter"
 title = "Convert the input volume from litres to cubic metres"
-metadata = { "gc.run_target" = "gascity-irc-pack/formula-worker", "gc.input_convoy" = "{{convoy_id}}" }
+metadata = { "gc.run_target" = "gascity-irc-pack/volume-converter", "gc.input_convoy_id" = "{{convoy_id}}" }
 description = "Read the sole source task bead in convoy `{{convoy_id}}`; its description is the numeric amount in litres (one input unit is exactly one litre). Derive the amount from that description, divide by 1000, and write the result as `<amount> m^3` to `volume-converter.txt` in the gascity-irc-pack rig. For the source payload `1000`, the output must be `1 m^3`. Do not substitute a hardcoded amount for the source task payload."
 
 [[steps]]
 id = "volume-doubler"
 title = "Double the converted volume"
 depends_on = ["volume-converter"]
-metadata = { "gc.run_target" = "gascity-irc-pack/formula-worker", "gc.input_convoy" = "{{convoy_id}}" }
+metadata = { "gc.run_target" = "gascity-irc-pack/volume-doubler", "gc.input_convoy_id" = "{{convoy_id}}" }
 description = "Read the first worker's written `volume-converter.txt` output in the gascity-irc-pack rig and double its cubic-metre amount. Write `<doubled amount> m^3` to `volume-doubler.txt`. For the source payload `1000`, after reading the first worker's `1 m^3` output, this file must contain exactly `2 m^3`. Do not recompute from a hardcoded source amount or rely on a result not written by the first worker."
