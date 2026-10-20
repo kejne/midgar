@@ -1,0 +1,37 @@
+#!/usr/bin/env python3
+"""Dispatch or resume a Midgar factory run."""
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from commands.midgar.factory import FactoryError, dispatch
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    subparsers = parser.add_subparsers(dest="action", required=True)
+    dispatch_parser = subparsers.add_parser("dispatch", help="validate and dispatch or resume an issue")
+    dispatch_parser.add_argument("issue", help="GitHub issue URL or OWNER/REPO#NUMBER")
+    dispatch_parser.add_argument("--rig", required=True, help="registered Gas City rig")
+    dispatch_parser.add_argument("--replace", action="store_true", help="archive and replace the existing run")
+    dispatch_parser.add_argument(
+        "--specs-root",
+        type=Path,
+        default=Path(__file__).resolve().parents[2] / ".gc" / "specs",
+        help=argparse.SUPPRESS,
+    )
+    args = parser.parse_args()
+    try:
+        result = dispatch(args.issue, args.rig, args.specs_root, replace=args.replace)
+    except FactoryError as error:
+        print(f"dispatch rejected: {error}", file=sys.stderr)
+        return 1
+    print(json.dumps(result, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

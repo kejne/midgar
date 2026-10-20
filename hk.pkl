@@ -1,0 +1,8 @@
+amends "package://github.com/jdx/hk/releases/download/v2.6.0/hk@2.6.0#/Config.pkl"
+
+steps = new Mapping {
+    ["midgar-tests"] = new Step {
+        glob = "**/*.py"
+        check = "python3 -m unittest discover -s tests -v"
+    }
+}

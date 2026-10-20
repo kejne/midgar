@@ -1,0 +1,9 @@
+# Midgar dispatch helper contract
+
+`commands/midgar/factory dispatch ISSUE --rig RIG` accepts a GitHub issue URL or `OWNER/REPO#NUMBER` and a registered non-HQ Gas City rig. The helper reads issue state with `gh`, resolves the rig with `gc rig list --json`, and verifies the rig's actual GitHub `origin` with `git`. It rejects the dispatch unless the issue has the `ready-for-agent` label and both repositories match. No work is released by this helper.
+
+Successful dispatch writes one JSON run record to `.gc/specs/.runs/OWNER-REPO-NUMBER.json` and prints that record as one JSON object. Its stable fields are `run_id`, `issue`, `repository`, `rig`, `stage`, `progress`, and `snapshot`. Run data and snapshots are local operational artifacts and are ignored by Git.
+
+The first dispatch captures issue title, body, URL, and comments as `.gc/specs/RIG/NUMBER/snapshot.json`. Later dispatches resolve the existing run without rewriting that snapshot. `--replace` is the explicit operator boundary for archiving the existing run and creating a replacement; replacement also preserves the original snapshot. Concurrent calls serialize on a per-source-issue lock and resolve to the same active run. Historical run records are retained under `.gc/specs/.runs/archive/`.
+
+This helper does not materialize an execution plan, create Beads tasks, provision workspaces, run agents, publish a PR, or provide a review/cleanup lifecycle. Those are outside issue #6's deterministic dispatch/run/snapshot foundation.
