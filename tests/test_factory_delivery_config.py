@@ -1,4 +1,5 @@
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -36,6 +37,29 @@ class FactoryDeliveryConfigTests(unittest.TestCase):
             self.assertIn((by_role["reviewer"], by_role["implementer"] + "-scope-check"), edges)
             self.assertIn((by_role["integrator"], by_role["reviewer"] + "-scope-check"), edges)
             self.assertFalse(any(step.get("metadata", {}).get("gc.max_attempts") not in {None, "3"} for step in recipe["steps"]))
+
+    def test_factory_worker_calls_installed_midgar_claim_command(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            city = root / "city"
+            city.mkdir()
+            bin_dir = root / "bin"
+            bin_dir.mkdir()
+            args_file = root / "args.json"
+            gc_stub = bin_dir / "gc"
+            gc_stub.write_text(
+                "#!/usr/bin/env python3\n"
+                "import json, os, sys\n"
+                "open(os.environ['GC_ARGS_FILE'], 'w').write(json.dumps(sys.argv[1:]))\n"
+                "print(json.dumps({'action': 'drain'}))\n"
+            )
+            gc_stub.chmod(0o755)
+            env = dict(os.environ, PATH=f"{bin_dir}:{os.environ['PATH']}",
+                       GC_CITY_PATH=str(city), GC_RIG="gascity-irc-pack", GC_ARGS_FILE=str(args_file))
+            result = subprocess.run([str(ROOT / "commands/midgar/factory-worker")], env=env,
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(args_file.read_text()), ["midgar", "gc", "claim"])
 
     def test_installed_config_accepts_factory_one_shot_fresh_adapter(self):
         with tempfile.TemporaryDirectory() as temp:
