@@ -17,6 +17,10 @@ class FakeCommands:
     def __call__(self, argv):
         self.calls.append(argv)
         if argv[:3] == ["gh", "issue", "view"]:
+            if "--comments" in argv and "--json" in argv:
+                raise FactoryError("specify only one of --comments or --json")
+            if "--json" in argv and "comments" not in argv[argv.index("--json") + 1].split(","):
+                raise FactoryError("snapshot request must include source discussion")
             return json.dumps(self.issue)
         if argv[:3] == ["gc", "rig", "list"]:
             return json.dumps({"rigs": self.rigs})
