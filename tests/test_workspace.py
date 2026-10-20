@@ -22,9 +22,9 @@ class WorkspaceLaunchTests(unittest.TestCase):
 
     def request(self, repo, root):
         return WorkspaceRequest(
-            run_id="run-123", issue="owner/project#7", rig="project", role="implementer",
+            run_id="run-123", issue="owner/project#7", rig="project", workspace_kind="task", session_role="implementer",
             repository=repo, workspace_root=root / "worktrees", task_id="task-42",
-            bead_id="midgar-abc", store_ref="dolt:midgar-abc", base_ref="HEAD", prerequisites_delivered=True,
+            bead_id="midgar-abc", store_ref="dolt:midgar-abc", base_ref="HEAD",
             base_sha=subprocess.check_output(["git", "-C", str(repo), "rev-parse", "HEAD"], text=True).strip(),
         )
 
@@ -70,15 +70,6 @@ class WorkspaceLaunchTests(unittest.TestCase):
             self.assertEqual([call[2] for call in calls], ["ensure", "verify"])
             self.assertIn("--base-sha", calls[0])
             self.assertIn("--owner", calls[0])
-
-    def test_task_workspace_requires_delivered_prerequisites(self):
-        with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            repo = self.repository(root)
-            with self.assertRaisesRegex(WorkspaceError, "prerequisites"):
-                self.request(repo, root).__class__(
-                    **(self.request(repo, root).__dict__ | {"prerequisites_delivered": False})
-                )
 
     def test_launch_refuses_a_worktree_on_the_wrong_branch(self):
         with tempfile.TemporaryDirectory() as temp:
