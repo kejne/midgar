@@ -78,6 +78,46 @@ def _atomic_json(path: Path, value: dict) -> None:
             os.unlink(temporary)
 
 
+def record_stage(
+    reference: str,
+    stage: str,
+    progress: dict,
+    diagnostics: dict | None = None,
+    specs_root: str | Path = ".gc/specs",
+) -> dict:
+    """Atomically persist factory stage, progress references, and diagnostics."""
+    owner, repo, number = _parse_issue(reference)
+    if not isinstance(stage, str) or not stage.strip():
+        raise FactoryError("stage must be a non-empty string")
+    if not isinstance(progress, dict):
+        raise FactoryError("progress must be an object")
+    if diagnostics is not None and not isinstance(diagnostics, dict):
+        raise FactoryError("diagnostics must be an object")
+
+    root = Path(specs_root).resolve()
+    issue_key = f"{owner.lower()}-{repo.lower()}-{number}"
+    lock_path = root / ".locks" / f"{issue_key}.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    run_path = root / ".runs" / f"{issue_key}.json"
+    with lock_path.open("a+") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if not run_path.exists():
+            raise FactoryError(f"no active run for {owner}/{repo}#{number}")
+        run = json.loads(run_path.read_text(encoding="utf-8"))
+        run["stage"] = stage
+        run_progress = run.setdefault("progress", {})
+        if not isinstance(run_progress, dict):
+            raise FactoryError("active run progress is not an object")
+        run_progress.update(progress)
+        if diagnostics is not None:
+            run_diagnostics = run.setdefault("diagnostics", [])
+            if not isinstance(run_diagnostics, list):
+                raise FactoryError("active run diagnostics is not a list")
+            run_diagnostics.append(diagnostics)
+        _atomic_json(run_path, run)
+        return run
+
+
 def _snapshot(issue: dict, owner: str, repo: str, number: int) -> dict:
     return {
         "issue": f"{owner}/{repo}#{number}",

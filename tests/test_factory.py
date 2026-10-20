@@ -4,7 +4,7 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from commands.midgar.factory import FactoryError, dispatch
+from commands.midgar.factory import FactoryError, dispatch, record_stage
 
 
 class FakeCommands:
@@ -124,6 +124,35 @@ class DispatchTests(unittest.TestCase):
                 ))
             self.assertEqual(results[0]["run_id"], results[1]["run_id"])
             self.assertFalse((Path(temp) / ".runs" / "archive").exists())
+
+    def test_record_stage_progress_and_diagnostics_survive_dispatch_and_artifacts_remain(self):
+        commands = FakeCommands(ready_issue(), [rig()])
+        with tempfile.TemporaryDirectory() as temp:
+            run = dispatch("owner/project#12", "project", temp, commands)
+            snapshot = Path(run["snapshot"])
+
+            failed = record_stage(
+                "owner/project#12", "failed", {"implementation": "blocked"},
+                {"message": "test suite failed", "stage": "implementation"}, temp,
+            )
+            self.assertEqual(failed["stage"], "failed")
+            self.assertEqual(failed["progress"]["implementation"], "blocked")
+            self.assertEqual(failed["diagnostics"], [{"message": "test suite failed", "stage": "implementation"}])
+
+            paused = record_stage(
+                "owner/project#12", "paused", {"review": "waiting", "pr": "#42"},
+                {"message": "awaiting reviewer"}, temp,
+            )
+            run_path = Path(temp) / ".runs" / "owner-project-12.json"
+            saved = json.loads(run_path.read_text())
+            self.assertEqual(paused["stage"], "paused")
+            self.assertEqual(saved["progress"]["implementation"], "blocked")
+            self.assertEqual(saved["progress"]["review"], "waiting")
+            self.assertEqual(saved["progress"]["pr"], "#42")
+            self.assertEqual(len(saved["diagnostics"]), 2)
+            self.assertTrue(snapshot.exists())
+            self.assertTrue(run_path.exists())
+            self.assertEqual(dispatch("owner/project#12", "project", temp, commands)["diagnostics"], saved["diagnostics"])
 
     def test_explicit_replacement_requires_operator_flag(self):
         commands = FakeCommands(ready_issue(), [rig()])
