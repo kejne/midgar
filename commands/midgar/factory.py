@@ -155,7 +155,7 @@ def dispatch(
     if not re.fullmatch(r"[A-Za-z0-9_.-]+", rig_name):
         raise FactoryError("invalid rig name")
 
-    issue = _json(command, ["gh", "issue", "view", str(number), "--repo", f"{owner}/{repo}", "--comments", "--json", "number,title,body,url,labels,comments"])
+    issue = _json(command, ["gh", "issue", "view", str(number), "--repo", f"{owner}/{repo}", "--json", "number,title,body,url,labels,comments"])
     if issue.get("number") != number:
         raise FactoryError("GitHub returned a different issue")
     labels = issue.get("labels")
