@@ -1,0 +1,42 @@
+#!/usr/bin/env python3
+"""Validate or materialize a versioned Midgar execution plan."""
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from commands.midgar.plan import PlanError, materialize_plan, validate_plan
+
+
+def read_json(path: Path):
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    actions = parser.add_subparsers(dest="action", required=True)
+    for action in ("validate", "materialize"):
+        sub = actions.add_parser(action)
+        if action == "materialize":
+            sub.add_argument("issue", help="GitHub issue URL or OWNER/REPO#NUMBER")
+        sub.add_argument("plan", type=Path, help="JSON execution plan")
+        sub.add_argument("acceptance", type=Path, help="JSON array of snapshot acceptance criterion IDs")
+        sub.add_argument("--specs-root", type=Path, default=Path(__file__).resolve().parents[2] / ".gc" / "specs", help=argparse.SUPPRESS)
+    args = parser.parse_args()
+    try:
+        plan = read_json(args.plan)
+        acceptance = read_json(args.acceptance)
+        if not isinstance(acceptance, list):
+            raise PlanError("acceptance file must contain a JSON array")
+        result = validate_plan(plan, acceptance) if args.action == "validate" else materialize_plan(args.issue, plan, acceptance, args.specs_root)
+    except (OSError, ValueError, PlanError) as error:
+        print(f"plan {args.action} rejected: {error}", file=sys.stderr)
+        return 1
+    print(json.dumps(result, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
