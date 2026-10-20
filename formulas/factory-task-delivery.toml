@@ -1,0 +1,40 @@
+formula = "factory-task-delivery"
+description = "Deliver one planned implementation task through commit, independent review, serialized integration, and plain hk check."
+version = 1
+
+[requires]
+formula_compiler = ">=2.0.0"
+
+[[steps]]
+id = "delivery-cycle"
+title = "Deliver this task: implement, independently review, integrate, and check"
+description = "The entire ordered cycle is one bounded task-delivery attempt. A failed role or check fails the attempt; only the native check scope may start a fresh rework attempt. Never infer delivery from closed beads."
+metadata = { "midgar.delivery_role" = "check" }
+
+[steps.check]
+max_attempts = 3
+
+[steps.check.check]
+mode = "exec"
+path = "formulas/factory-task-delivery-check.sh"
+timeout = "20m"
+
+[[steps.children]]
+id = "implement"
+title = "Implement and commit this vertical task slice"
+description = "Read the supplied fixed snapshot and this task's acceptance criteria. First inspect the target repository's GLOSSARY.md, relevant ADRs, AGENTS.md, and applicable standards. Work test-first at agreed public behavior seams: add one focused failing test, implement the smallest vertical slice, run the relevant tests, then continue in small red-green cycles. Prefer independently verifiable vertical slices; for broad mechanical changes use expand/migrate/contract rather than leaving a broken intermediate state. Do not invent scope or approval gates. Use only the verified task worktree; do not create or repair workspaces. Before reporting success, commit all intended changes and ensure the worktree is clean. Return JSON with outcome=passed and the full commit SHA; report blockers rather than claiming success."
+metadata = { "gc.run_target" = "gascity-irc-pack/midgar.factory-worker", "midgar.delivery_role" = "implementer", "gc.on_fail" = "abort_scope" }
+
+[[steps.children]]
+id = "review"
+title = "Fresh independent review: report Standards and Spec separately"
+description = "This is a fresh reviewer session. Review only the supplied task diff, fixed snapshot, and task acceptance. Assess two independent axes and report them separately: Standards (mandatory repo-documented rules, glossary and ADR compliance) and Spec (correctness, completeness, acceptance coverage, and unauthorized scope). Correctness defects, missing/wrong requirements, unauthorized scope expansion, and mandatory standards violations block. Heuristic code smells are advisory unless a documented mandatory rule makes them blocking; do not duplicate tooling checks. Do not edit files. Return exactly JSON: standards and spec each passed or blocked, separate non-empty standards_evidence and spec_evidence, commit=<full reviewed task HEAD SHA>, blocking_findings, and advisory_findings. Integration is forbidden unless both axes pass, commit matches the reviewed checkout, and blocking_findings is empty."
+needs = ["implement"]
+metadata = { "gc.run_target" = "gascity-irc-pack/midgar.factory-worker", "midgar.delivery_role" = "reviewer", "gc.on_fail" = "abort_scope" }
+
+[[steps.children]]
+id = "integrate"
+title = "Serially integrate only the reviewed commit"
+description = "This is a fresh integrator session in the spec integration checkout. Verify the task has explicit passed implementation and independent review evidence. Integrate only the reviewed commit; do not edit source or resolve conflicts with unreviewed changes. If integration conflicts or cannot be verified, report failure for bounded reviewed rework. Return JSON with integration=passed, reviewed_commit=<the exact reviewed implementation SHA>, and commit=<full resulting spec-worktree HEAD SHA> only after that reviewed commit is an ancestor of the committed spec HEAD."
+needs = ["review"]
+metadata = { "gc.run_target" = "gascity-irc-pack/midgar.factory-worker", "midgar.delivery_role" = "integrator", "gc.on_fail" = "abort_scope" }

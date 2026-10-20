@@ -5,4 +5,20 @@ steps = new Mapping {
         glob = "**/*.py"
         check = "python3 -m unittest discover -s tests -v"
     }
+    ["factory-formula-compiler"] = new Step {
+        glob = "formulas/**"
+        check = "python3 -m unittest tests.test_factory_delivery_config -v"
+    }
+    ["factory-agent-config"] = new Step {
+        glob = "vendor/midgar/**"
+        check = "python3 -m unittest tests.test_factory_delivery_config -v"
+    }
+    ["factory-city-config"] = new Step {
+        glob = "city.toml"
+        check = "python3 -m unittest tests.test_factory_delivery_config -v"
+    }
+    ["factory-wrapper-contract"] = new Step {
+        glob = "commands/midgar/factory-*"
+        check = "python3 -m unittest tests.test_factory_delivery_config tests.test_delivery -v"
+    }
 }
