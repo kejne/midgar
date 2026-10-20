@@ -63,6 +63,12 @@ def _github_repository(remote: str) -> tuple[str, str]:
     raise FactoryError("selected rig has no valid GitHub origin repository")
 
 
+def _issue_lock(root: Path, owner: str, repo: str, number: int) -> tuple[str, Path]:
+    issue_key = f"{owner.lower()}-{repo.lower()}-{number}"
+    lock_path = root / ".locks" / f"{issue_key}.lock"
+    return issue_key, lock_path
+
+
 def _atomic_json(path: Path, value: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
@@ -95,8 +101,7 @@ def record_stage(
         raise FactoryError("diagnostics must be an object")
 
     root = Path(specs_root).resolve()
-    issue_key = f"{owner.lower()}-{repo.lower()}-{number}"
-    lock_path = root / ".locks" / f"{issue_key}.lock"
+    issue_key, lock_path = _issue_lock(root, owner, repo, number)
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     run_path = root / ".runs" / f"{issue_key}.json"
     with lock_path.open("a+") as lock:
@@ -167,8 +172,7 @@ def dispatch(
         raise FactoryError("issue repository does not match selected rig repository")
 
     root = Path(specs_root).resolve()
-    issue_key = f"{owner.lower()}-{repo.lower()}-{number}"
-    lock_path = root / ".locks" / f"{issue_key}.lock"
+    issue_key, lock_path = _issue_lock(root, owner, repo, number)
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     with lock_path.open("a+") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)

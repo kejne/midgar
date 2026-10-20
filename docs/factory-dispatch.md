@@ -10,4 +10,6 @@ The first dispatch captures issue title, body, URL, and comments as `.gc/specs/R
 
 Run records, archived run records, diagnostics, and snapshots are retained indefinitely by this foundation. There is no automatic cleanup or delete path. Removal requires an explicit safe operator cleanup decision; PR lifecycle and cleanup automation remain out of scope.
 
-This helper does not materialize an execution plan, create Beads tasks, provision workspaces, run agents, publish a PR, or provide a review/cleanup lifecycle. Those are outside issue #6's deterministic dispatch/run/snapshot foundation.
+Issue #6's immutable spec snapshots store requirements only: the issue title, body, URL, and comments. Run stage and progress references are stored separately in run records; neither execution plans nor run requirements are stored in the snapshot or run record. This helper does not materialize an execution plan. Any future versioned plan artifacts must be separate from the requirements snapshot and reference it. Issue #8 owns defining and materializing those plan artifacts.
+
+This helper also does not create Beads tasks, provision workspaces, run agents, publish a PR, or provide a review/cleanup lifecycle. Those are outside issue #6's deterministic dispatch/run/snapshot foundation.
