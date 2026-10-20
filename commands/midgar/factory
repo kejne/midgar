@@ -17,6 +17,7 @@ def main() -> int:
     dispatch_parser.add_argument("issue", help="GitHub issue URL or OWNER/REPO#NUMBER")
     dispatch_parser.add_argument("--rig", required=True, help="registered Gas City rig")
     dispatch_parser.add_argument("--replace", action="store_true", help="archive and replace the existing run")
+    dispatch_parser.add_argument("--reconcile", action="store_true", help="capture changed issue requirements as a new snapshot revision")
     dispatch_parser.add_argument(
         "--specs-root",
         type=Path,
@@ -25,7 +26,7 @@ def main() -> int:
     )
     args = parser.parse_args()
     try:
-        result = dispatch(args.issue, args.rig, args.specs_root, replace=args.replace)
+        result = dispatch(args.issue, args.rig, args.specs_root, replace=args.replace, reconcile=args.reconcile)
     except FactoryError as error:
         print(f"dispatch rejected: {error}", file=sys.stderr)
         return 1

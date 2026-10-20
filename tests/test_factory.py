@@ -81,6 +81,39 @@ class DispatchTests(unittest.TestCase):
             self.assertEqual(first["run_id"], second["run_id"])
             self.assertEqual(snapshot.read_bytes(), original)
 
+    def test_rejects_repeat_dispatch_to_different_rig_unless_replaced(self):
+        alternate_rig = {"name": "alternate", "path": "/rig/alternate", "hq": False}
+        commands = FakeCommands(ready_issue(), [rig(), alternate_rig])
+        with tempfile.TemporaryDirectory() as temp:
+            first = dispatch("owner/project#12", "project", temp, commands)
+            with self.assertRaisesRegex(FactoryError, "already belongs to rig project"):
+                dispatch("owner/project#12", "alternate", temp, commands)
+            replacement = dispatch("owner/project#12", "alternate", temp, commands, replace=True)
+            self.assertEqual(replacement["rig"], "alternate")
+            self.assertNotEqual(first["run_id"], replacement["run_id"])
+
+    def test_reconcile_creates_snapshot_revision_only_when_explicit(self):
+        commands = FakeCommands(ready_issue(), [rig()])
+        with tempfile.TemporaryDirectory() as temp:
+            first = dispatch("owner/project#12", "project", temp, commands)
+            original_path = Path(first["snapshot"])
+            original_bytes = original_path.read_bytes()
+            commands.issue = ready_issue(body="Changed requirements")
+            resumed = dispatch("owner/project#12", "project", temp, commands)
+            self.assertEqual(resumed["run_id"], first["run_id"])
+            self.assertEqual(resumed["snapshot"], first["snapshot"])
+            self.assertEqual(original_path.read_bytes(), original_bytes)
+
+            reconciled = dispatch("owner/project#12", "project", temp, commands, reconcile=True)
+            revised_path = Path(reconciled["snapshot"])
+            self.assertEqual(reconciled["run_id"], first["run_id"])
+            self.assertNotEqual(revised_path, original_path)
+            self.assertEqual(json.loads(revised_path.read_text())["body"], "Changed requirements")
+            self.assertEqual(original_path.read_bytes(), original_bytes)
+            active = json.loads((Path(temp) / ".runs" / "owner-project-12.json").read_text())
+            self.assertEqual(active["snapshot"], str(revised_path))
+            self.assertFalse((Path(temp) / ".runs" / "archive").exists())
+
     def test_concurrent_dispatch_resolves_one_active_run(self):
         commands = FakeCommands(ready_issue(), [rig()])
         with tempfile.TemporaryDirectory() as temp:

@@ -78,6 +78,16 @@ def _atomic_json(path: Path, value: dict) -> None:
             os.unlink(temporary)
 
 
+def _snapshot(issue: dict, owner: str, repo: str, number: int) -> dict:
+    return {
+        "issue": f"{owner}/{repo}#{number}",
+        "url": issue.get("url", f"https://github.com/{owner}/{repo}/issues/{number}"),
+        "title": issue.get("title", ""),
+        "body": issue.get("body", ""),
+        "comments": issue.get("comments", []),
+    }
+
+
 def dispatch(
     reference: str,
     rig_name: str,
@@ -85,8 +95,11 @@ def dispatch(
     command: Command = _run,
     *,
     replace: bool = False,
+    reconcile: bool = False,
 ) -> dict:
     """Validate and resolve an issue run; all run/snapshot files stay local."""
+    if replace and reconcile:
+        raise FactoryError("--replace and --reconcile cannot be used together")
     owner, repo, number = _parse_issue(reference)
     if not re.fullmatch(r"[A-Za-z0-9_.-]+", rig_name):
         raise FactoryError("invalid rig name")
@@ -124,20 +137,28 @@ def dispatch(
         previous = None
         if run_path.exists():
             previous = json.loads(run_path.read_text(encoding="utf-8"))
+            if previous.get("rig") != rig_name and not replace:
+                raise FactoryError(f"issue already belongs to rig {previous.get('rig')}")
             if not replace:
+                if not reconcile:
+                    return previous
+                active_snapshot = Path(previous["snapshot"])
+                revision = 2
+                while True:
+                    snapshot_path = active_snapshot.with_name(f"snapshot.revision-{revision}.json")
+                    if not snapshot_path.exists():
+                        break
+                    revision += 1
+                _atomic_json(snapshot_path, _snapshot(issue, owner, repo, number))
+                previous["snapshot"] = str(snapshot_path)
+                previous.setdefault("progress", {})["snapshot"] = str(snapshot_path)
+                _atomic_json(run_path, previous)
                 return previous
 
         directory.mkdir(parents=True, exist_ok=True)
         snapshot_path = directory / "snapshot.json"
         if not snapshot_path.exists():
-            snapshot = {
-                "issue": f"{owner}/{repo}#{number}",
-                "url": issue.get("url", f"https://github.com/{owner}/{repo}/issues/{number}"),
-                "title": issue.get("title", ""),
-                "body": issue.get("body", ""),
-                "comments": issue.get("comments", []),
-            }
-            _atomic_json(snapshot_path, snapshot)
+            _atomic_json(snapshot_path, _snapshot(issue, owner, repo, number))
 
         run = {
             "run_id": str(uuid.uuid4()),
