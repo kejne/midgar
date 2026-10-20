@@ -22,7 +22,7 @@ def main() -> int:
         print("factory worker rejected: missing GC_CITY_PATH or GC_RIG", file=sys.stderr)
         return 1
     try:
-        claimed = subprocess.run(["gc", "gc", "claim"], check=True, capture_output=True, text=True)
+        claimed = subprocess.run(["gc", "midgar", "gc", "claim"], check=True, capture_output=True, text=True)
         claim = json.loads(claimed.stdout)
         if not isinstance(claim, dict):
             raise DeliveryError("claim command returned malformed JSON")
