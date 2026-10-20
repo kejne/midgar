@@ -58,6 +58,16 @@ class DispatchTests(unittest.TestCase):
             self.assertEqual(len(run_files), 1)
             self.assertTrue(run_files[0].exists())
 
+    def test_dispatch_canonicalizes_mixed_case_issue_identity(self):
+        commands = FakeCommands(ready_issue(), [rig()])
+        with tempfile.TemporaryDirectory() as temp:
+            result = dispatch("OWNER/PROJECT#12", "project", temp, commands)
+            self.assertEqual(result["issue"], "owner/project#12")
+            self.assertEqual(result["repository"], "owner/project")
+            saved = json.loads(Path(result["snapshot"]).read_text())
+            self.assertEqual(saved["issue"], "owner/project#12")
+            self.assertEqual(saved["url"], "https://github.com/owner/project/issues/12")
+
     def test_rejects_issue_without_ready_label_before_creating_run(self):
         commands = FakeCommands(ready_issue(labels=[]), [rig()])
         with tempfile.TemporaryDirectory() as temp:

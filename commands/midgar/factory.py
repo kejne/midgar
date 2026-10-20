@@ -38,7 +38,7 @@ def _parse_issue(reference: str) -> IssueReference:
     if not match:
         raise FactoryError("issue must be a GitHub URL or OWNER/REPO#NUMBER")
     owner, repo, number, short_owner, short_repo, short_number = match.groups()
-    return owner or short_owner, repo or short_repo, int(number or short_number)
+    return (owner or short_owner).lower(), (repo or short_repo).lower(), int(number or short_number)
 
 
 def _json(command: Command, argv: list[str]) -> dict:
@@ -86,18 +86,8 @@ def _atomic_bytes(path: Path, content: bytes) -> None:
 
 
 def _atomic_json(path: Path, value: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-            json.dump(value, stream, indent=2, sort_keys=True)
-            stream.write("\n")
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temporary, path)
-    finally:
-        if os.path.exists(temporary):
-            os.unlink(temporary)
+    content = json.dumps(value, indent=2, sort_keys=True) + "\n"
+    _atomic_bytes(path, content.encode("utf-8"))
 
 
 def record_stage(
