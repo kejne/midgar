@@ -54,7 +54,9 @@ class DispatchTests(unittest.TestCase):
             saved = json.loads(snapshot.read_text())
             self.assertEqual(saved["body"], "Requirements")
             self.assertEqual(saved["comments"], [{"body": "Clarify the expected behavior"}])
-            self.assertTrue((Path(temp) / ".runs" / "owner-project-12.json").exists())
+            run_files = list((Path(temp) / ".runs").glob("*.json"))
+            self.assertEqual(len(run_files), 1)
+            self.assertTrue(run_files[0].exists())
 
     def test_rejects_issue_without_ready_label_before_creating_run(self):
         commands = FakeCommands(ready_issue(labels=[]), [rig()])
@@ -110,9 +112,78 @@ class DispatchTests(unittest.TestCase):
             self.assertNotEqual(revised_path, original_path)
             self.assertEqual(json.loads(revised_path.read_text())["body"], "Changed requirements")
             self.assertEqual(original_path.read_bytes(), original_bytes)
-            active = json.loads((Path(temp) / ".runs" / "owner-project-12.json").read_text())
+            active_path = next((Path(temp) / ".runs").glob("*.json"))
+            active = json.loads(active_path.read_text())
             self.assertEqual(active["snapshot"], str(revised_path))
             self.assertFalse((Path(temp) / ".runs" / "archive").exists())
+
+    def test_replace_after_reconcile_preserves_active_snapshot(self):
+        commands = FakeCommands(ready_issue(), [rig()])
+        with tempfile.TemporaryDirectory() as temp:
+            first = dispatch("owner/project#12", "project", temp, commands)
+            commands.issue = ready_issue(body="Reconciled requirements")
+            reconciled = dispatch("owner/project#12", "project", temp, commands, reconcile=True)
+            active_snapshot = Path(reconciled["snapshot"])
+            active_bytes = active_snapshot.read_bytes()
+            commands.issue = ready_issue(body="Later changed source")
+
+            replacement = dispatch("owner/project#12", "project", temp, commands, replace=True)
+            self.assertNotEqual(replacement["run_id"], first["run_id"])
+            self.assertEqual(replacement["snapshot"], str(active_snapshot))
+            self.assertEqual(Path(replacement["snapshot"]).read_bytes(), active_bytes)
+            saved = json.loads(active_snapshot.read_text())
+            self.assertEqual(saved["body"], "Reconciled requirements")
+
+    def test_replace_after_reconcile_to_different_rig_copies_active_snapshot(self):
+        alternate_rig = {"name": "alternate", "path": "/rig/alternate", "hq": False}
+        commands = FakeCommands(ready_issue(), [rig(), alternate_rig])
+        with tempfile.TemporaryDirectory() as temp:
+            dispatch("owner/project#12", "project", temp, commands)
+            commands.issue = ready_issue(body="Reconciled requirements")
+            reconciled = dispatch("owner/project#12", "project", temp, commands, reconcile=True)
+            active_bytes = Path(reconciled["snapshot"]).read_bytes()
+            destination = Path(temp) / "alternate" / "12" / "snapshot.json"
+            destination.parent.mkdir(parents=True)
+            destination.write_text('{"body": "pre-existing artifact"}\n')
+            existing_bytes = destination.read_bytes()
+            commands.issue = ready_issue(body="Later changed source")
+
+            replacement = dispatch("owner/project#12", "alternate", temp, commands, replace=True)
+            self.assertNotEqual(Path(replacement["snapshot"]), destination)
+            self.assertEqual(destination.read_bytes(), existing_bytes)
+            self.assertEqual(Path(replacement["snapshot"]).read_bytes(), active_bytes)
+            self.assertEqual(json.loads(Path(replacement["snapshot"]).read_text())["body"], "Reconciled requirements")
+            self.assertEqual(replacement["progress"]["snapshot"], replacement["snapshot"])
+
+    def test_colliding_hyphenated_issue_names_have_independent_runs(self):
+        left_issue = ready_issue(number=12, url="https://github.com/a-b/c/issues/12")
+        right_issue = ready_issue(number=12, url="https://github.com/a/b-c/issues/12")
+        rigs = [
+            {"name": "left", "path": "/rig/left", "hq": False},
+            {"name": "right", "path": "/rig/right", "hq": False},
+        ]
+
+        class PairCommands:
+            def __call__(self, argv):
+                if argv[:3] == ["gh", "issue", "view"]:
+                    return json.dumps(left_issue if argv[argv.index("--repo") + 1] == "a-b/c" else right_issue)
+                if argv[:3] == ["gc", "rig", "list"]:
+                    return json.dumps({"rigs": rigs})
+                if argv[:2] == ["git", "-C"]:
+                    return "git@github.com:a-b/c.git\n" if argv[2] == "/rig/left" else "git@github.com:a/b-c.git\n"
+                raise AssertionError(f"unexpected command: {argv}")
+
+        with tempfile.TemporaryDirectory() as temp:
+            left = dispatch("a-b/c#12", "left", temp, PairCommands())
+            right = dispatch("a/b-c#12", "right", temp, PairCommands())
+            self.assertNotEqual(left["run_id"], right["run_id"])
+            self.assertNotEqual(left["snapshot"], right["snapshot"])
+            left_saved = record_stage("a-b/c#12", "left-running", {}, specs_root=temp)
+            right_saved = record_stage("a/b-c#12", "right-running", {}, specs_root=temp)
+            self.assertEqual(left_saved["run_id"], left["run_id"])
+            self.assertEqual(right_saved["run_id"], right["run_id"])
+            self.assertEqual(left_saved["stage"], "left-running")
+            self.assertEqual(right_saved["stage"], "right-running")
 
     def test_concurrent_dispatch_resolves_one_active_run(self):
         commands = FakeCommands(ready_issue(), [rig()])
@@ -143,7 +214,7 @@ class DispatchTests(unittest.TestCase):
                 "owner/project#12", "paused", {"review": "waiting", "pr": "#42"},
                 {"message": "awaiting reviewer"}, temp,
             )
-            run_path = Path(temp) / ".runs" / "owner-project-12.json"
+            run_path = next((Path(temp) / ".runs").glob("*.json"))
             saved = json.loads(run_path.read_text())
             self.assertEqual(paused["stage"], "paused")
             self.assertEqual(saved["progress"]["implementation"], "blocked")

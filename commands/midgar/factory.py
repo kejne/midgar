@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import fcntl
+import hashlib
 import json
 import os
 import re
@@ -64,9 +65,24 @@ def _github_repository(remote: str) -> tuple[str, str]:
 
 
 def _issue_lock(root: Path, owner: str, repo: str, number: int) -> tuple[str, Path]:
-    issue_key = f"{owner.lower()}-{repo.lower()}-{number}"
+    identity = json.dumps([owner.lower(), repo.lower(), number], separators=(",", ":"))
+    issue_key = hashlib.sha256(identity.encode("utf-8")).hexdigest()
     lock_path = root / ".locks" / f"{issue_key}.lock"
     return issue_key, lock_path
+
+
+def _atomic_bytes(path: Path, content: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
 
 
 def _atomic_json(path: Path, value: dict) -> None:
@@ -201,7 +217,28 @@ def dispatch(
 
         directory.mkdir(parents=True, exist_ok=True)
         snapshot_path = directory / "snapshot.json"
-        if not snapshot_path.exists():
+        if previous is not None:
+            active_snapshot = Path(previous["snapshot"])
+            if not active_snapshot.is_file():
+                raise FactoryError("active run snapshot is missing")
+            if previous.get("rig") == rig_name:
+                snapshot_path = active_snapshot
+            else:
+                active_bytes = active_snapshot.read_bytes()
+                if snapshot_path.exists() and snapshot_path.read_bytes() != active_bytes:
+                    revision = 2
+                    while True:
+                        candidate = directory / f"snapshot.revision-{revision}.json"
+                        if not candidate.exists():
+                            snapshot_path = candidate
+                            break
+                        if candidate.read_bytes() == active_bytes:
+                            snapshot_path = candidate
+                            break
+                        revision += 1
+                if not snapshot_path.exists():
+                    _atomic_bytes(snapshot_path, active_bytes)
+        elif not snapshot_path.exists():
             _atomic_json(snapshot_path, _snapshot(issue, owner, repo, number))
 
         run = {
