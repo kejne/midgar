@@ -1,0 +1,8 @@
+scope = "rig"
+start_command = "python3 '{{.CityRoot}}/commands/midgar/factory-worker'"
+lifecycle = "one_shot"
+prompt_mode = "none"
+wake_mode = "fresh"
+min_active_sessions = 0
+max_active_sessions = 1
+idle_timeout = "5m"

@@ -1,0 +1,32 @@
+#!/usr/bin/env python3
+"""Run the factory task's plain hk check in its verified spec checkout."""
+
+from __future__ import annotations
+
+import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from commands.midgar.delivery import DeliveryError, run_factory_check
+from commands.midgar.workspace import WorkspaceError
+
+
+def main() -> int:
+    city_value = os.environ.get("GC_CITY_PATH", "")
+    city = Path(city_value).resolve() if city_value else Path("/")
+    rig = os.environ.get("GC_RIG", "")
+    bead_id = os.environ.get("GC_BEAD_ID", "")
+    if not city_value or not city.is_dir() or not rig or not bead_id:
+        print("factory check rejected: missing GC_CITY_PATH, GC_RIG, or GC_BEAD_ID", file=sys.stderr)
+        return 1
+    try:
+        run_factory_check(bead_id, rig=rig, specs_root=city / ".gc" / "specs")
+    except (DeliveryError, WorkspaceError) as error:
+        print(f"factory check failed closed: {error}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

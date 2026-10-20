@@ -28,15 +28,21 @@ name = "gremlins"
 default_branch = "main"
 [rigs.imports."gc-roles"]
 source = "./vendor/gc-roles"
+[rigs.imports.midgar]
+source = "./vendor/midgar"
 
 [[rigs]]
 name = "gascity-irc-pack"
 default_branch = "main"
 [rigs.imports."gc-roles"]
 source = "./vendor/gc-roles"
+[rigs.imports.midgar]
+source = "./vendor/midgar"
 
 [[rigs]]
 name = "helm-values-docs"
 default_branch = "main"
 [rigs.imports."gc-roles"]
 source = "./vendor/gc-roles"
+[rigs.imports.midgar]
+source = "./vendor/midgar"

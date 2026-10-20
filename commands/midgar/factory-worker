@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+"""Claim one formula-routed task role, verify its workspace, then run fresh Pi."""
+
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from commands.midgar.delivery import DeliveryError, run_claimed_role
+from commands.midgar.workspace import WorkspaceError
+
+
+def main() -> int:
+    city_value = os.environ.get("GC_CITY_PATH", "")
+    city = Path(city_value).resolve() if city_value else Path("/")
+    rig = os.environ.get("GC_RIG", "")
+    if not city_value or not city.is_dir() or not rig:
+        print("factory worker rejected: missing GC_CITY_PATH or GC_RIG", file=sys.stderr)
+        return 1
+    try:
+        claimed = subprocess.run(["gc", "gc", "claim"], check=True, capture_output=True, text=True)
+        claim = json.loads(claimed.stdout)
+        if not isinstance(claim, dict):
+            raise DeliveryError("claim command returned malformed JSON")
+        if claim.get("action") == "drain":
+            return 0
+        if claim.get("action") != "work":
+            raise DeliveryError("claim command did not return work or acknowledged drain")
+        primed = subprocess.run(
+            ["gc", "--city", str(city), "prime", "--strict", "--hook", f"{rig}/midgar.factory-worker"],
+            check=True, capture_output=True, text=True,
+        )
+        result = run_claimed_role(
+            claimed.stdout, rig=rig, specs_root=city / ".gc" / "specs",
+            system_prompt=primed.stdout,
+        )
+    except (OSError, subprocess.CalledProcessError, ValueError, DeliveryError, WorkspaceError) as error:
+        print(f"factory worker failed closed: {error}", file=sys.stderr)
+        return 1
+    print(json.dumps(result, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
