@@ -218,16 +218,6 @@ def _run_record(context: dict, specs_root: str | Path) -> dict:
     return value
 
 
-def _result_metadata(bead: dict, field: str) -> object:
-    value = _metadata(bead).get(field)
-    if isinstance(value, str):
-        try:
-            return json.loads(value)
-        except ValueError:
-            return value
-    return value
-
-
 def _prerequisite_results(context: dict, command: NativeCommand) -> tuple[list[str], dict[str, dict]]:
     rows = json.loads(command(_native(context["rig"], "bd", "dep", "list", context["task_bead_id"], "--json")))
     if not isinstance(rows, list):
@@ -437,6 +427,7 @@ def verify_role_commit(
     task_binding: WorkspaceBinding | None = None,
     task_metadata: Mapping[str, object] | None = None,
     review_head: str | None = None,
+    spec_base_head: str | None = None,
 ) -> None:
     """Bind review/integration claims to exact Git evidence, not model assertion."""
     if role == "implementer":
@@ -476,6 +467,36 @@ def verify_role_commit(
                               capture_output=True, text=True)
     if ancestry.returncode != 0:
         raise DeliveryError("reviewed implementation commit is not reachable from the spec integration HEAD")
+    if not isinstance(spec_base_head, str) or not _SHA.fullmatch(spec_base_head):
+        raise DeliveryError("integration is missing the spec HEAD captured before model start")
+    if spec_head == spec_base_head:
+        if reviewed != spec_base_head:
+            already_integrated = subprocess.run(
+                ["git", "-C", str(binding.path), "merge-base", "--is-ancestor", reviewed, spec_base_head],
+                capture_output=True, text=True,
+            )
+            if already_integrated.returncode != 0:
+                raise DeliveryError("integrator did not advance the spec HEAD to the reviewed implementation")
+        return
+    if spec_head == reviewed:
+        fast_forward = subprocess.run(
+            ["git", "-C", str(binding.path), "merge-base", "--is-ancestor", spec_base_head, reviewed],
+            capture_output=True, text=True,
+        )
+        if fast_forward.returncode == 0:
+            return
+    parents = _git(binding.path, "rev-list", "--parents", "-n", "1", spec_head).split()
+    if len(parents) != 3 or parents[1:] != [spec_base_head, reviewed]:
+        raise DeliveryError("integration contains commits beyond the reviewed result")
+    expected_tree = subprocess.run(
+        ["git", "-C", str(binding.path), "merge-tree", "--write-tree", spec_base_head, reviewed],
+        capture_output=True, text=True,
+    )
+    if expected_tree.returncode != 0 or not expected_tree.stdout.splitlines():
+        raise DeliveryError("reviewed change cannot be integrated cleanly without conflict resolution")
+    actual_tree = _git(binding.path, "rev-parse", "HEAD^{tree}")
+    if expected_tree.stdout.splitlines()[0].strip() != actual_tree:
+        raise DeliveryError("integration tree contains changes beyond the clean reviewed merge")
 
 
 def run_claimed_role(
@@ -504,6 +525,7 @@ def run_claimed_role(
         prompt = _task_prompt(context, run, binding)
         review_head = context.get("review_head")
         task_binding = None
+        spec_base_head = None
         if context["role"] == "reviewer":
             review_head = _git(binding.path, "rev-parse", "HEAD")
             context["review_head"] = review_head
@@ -516,6 +538,9 @@ def run_claimed_role(
             reviewed = _metadata(context["task_bead"]).get("midgar.delivery.implementation_commit")
             if _git(task_binding.path, "rev-parse", "HEAD") != reviewed:
                 raise DeliveryError("task HEAD changed after review; implementation requires fresh review")
+            spec_base_head = _git(binding.path, "rev-parse", "HEAD")
+            if _git(binding.path, "status", "--porcelain"):
+                raise DeliveryError("spec integration workspace must be clean before integration")
         model = run_model(binding, prompt, system_prompt, role=context["role"],
                           claimed_bead_id=context["bead_id"], pi_bin=pi_bin,
                           native_command=command)
@@ -524,7 +549,8 @@ def run_claimed_role(
         reported = _decode_report(model.stdout)
         report = validate_role_report(context["role"], reported)
         verify_role_commit(context["role"], report, binding, task_binding=task_binding,
-                           task_metadata=_metadata(context["task_bead"]), review_head=review_head)
+                           task_metadata=_metadata(context["task_bead"]), review_head=review_head,
+                           spec_base_head=spec_base_head)
         _write_result(context, command, report, passed=True)
         return {"ok": True, "bead_id": context["bead_id"], "task_bead_id": context["task_bead_id"], "report": report}
     except (DeliveryError, WorkspaceError, OSError, subprocess.SubprocessError) as error:

@@ -127,6 +127,36 @@ class DeliveryGateTests(unittest.TestCase):
                 task_binding=task_binding,
                 task_metadata={"midgar.delivery.review": "passed", "midgar.delivery.review_commit": task_head,
                                "midgar.delivery.implementation_commit": task_head},
+                spec_base_head=spec_binding.request.base_sha,
+            )
+
+    def test_integrator_rejects_unreviewed_spec_changes_after_merging_reviewed_commit(self):
+        with tempfile.TemporaryDirectory() as temp:
+            repo, task_binding, spec_binding, base, task_head = self._task_and_spec_worktrees(Path(temp))
+            subprocess.run(["git", "-C", str(spec_binding.path), "merge", "--no-edit", "--no-ff", task_binding.branch], check=True)
+            (Path(spec_binding.path) / "extra").write_text("unreviewed integration change")
+            subprocess.run(["git", "-C", str(spec_binding.path), "add", "extra"], check=True)
+            subprocess.run(["git", "-C", str(spec_binding.path), "commit", "-qm", "unreviewed change"], check=True)
+            spec_head = subprocess.check_output(["git", "-C", str(spec_binding.path), "rev-parse", "HEAD"], text=True).strip()
+            with self.assertRaisesRegex(DeliveryError, "commits beyond the reviewed result"):
+                verify_role_commit(
+                    "integrator", {"commit": spec_head, "reviewed_commit": task_head}, spec_binding,
+                    task_binding=task_binding,
+                    task_metadata={"midgar.delivery.review": "passed", "midgar.delivery.review_commit": task_head,
+                                   "midgar.delivery.implementation_commit": task_head},
+                    spec_base_head=base,
+                )
+
+    def test_integrator_accepts_exact_fast_forward_of_reviewed_commit(self):
+        with tempfile.TemporaryDirectory() as temp:
+            repo, task_binding, spec_binding, base, task_head = self._task_and_spec_worktrees(Path(temp))
+            subprocess.run(["git", "-C", str(spec_binding.path), "reset", "--hard", task_head], check=True)
+            verify_role_commit(
+                "integrator", {"commit": task_head, "reviewed_commit": task_head}, spec_binding,
+                task_binding=task_binding,
+                task_metadata={"midgar.delivery.review": "passed", "midgar.delivery.review_commit": task_head,
+                               "midgar.delivery.implementation_commit": task_head},
+                spec_base_head=base,
             )
 
     def test_integrator_rejects_task_head_changed_since_scoped_review(self):
